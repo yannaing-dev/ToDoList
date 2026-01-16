@@ -1,8 +1,8 @@
 /**
- * To-Do List Application - JavaScript
+ * To-Do List Application - JavaScript (PostgreSQL Version)
  * 
- * Complete client-side logic for the To-Do List application.
- * Uses localStorage for data persistence so data is not lost on restart.
+ * Client-side logic for the To-Do List application.
+ * Uses REST API endpoints to communicate with PostgreSQL backend for data persistence.
  */
 
 // ============================================================================
@@ -52,7 +52,7 @@ class Task {
     }
 
     /**
-     * Creates a Task from a plain object (from localStorage)
+     * Creates a Task from a plain object (from API response)
      * @param {Object} obj - Plain object with task data
      * @returns {Task} Task instance
      */
@@ -67,8 +67,8 @@ class Task {
 
 class ToDoApp {
     constructor() {
-        // Key for localStorage storage
-        this.STORAGE_KEY = 'todo_tasks';
+        // API configuration
+        this.API_URL = '/api';
 
         // Task list array
         this.tasks = [];
@@ -81,10 +81,13 @@ class ToDoApp {
         // For edit functionality
         this.editingTaskId = null;
 
+        // Loading state
+        this.isLoading = false;
+
         // Initialize DOM references
         this.initDOMReferences();
 
-        // Load tasks from localStorage
+        // Load tasks from API
         this.loadTasks();
 
         // Setup event listeners
@@ -133,7 +136,7 @@ class ToDoApp {
 
         // Submit on Enter key
         this.taskInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !this.isLoading) {
                 this.handleSubmit();
             }
         });
@@ -150,46 +153,65 @@ class ToDoApp {
     }
 
     // --------------------------------------------------------------------------
+    // API METHODS
+    // --------------------------------------------------------------------------
+
+    /**
+     * Makes a fetch request to the API
+     * @param {string} endpoint - API endpoint (e.g., '/tasks')
+     * @param {string} method - HTTP method (GET, POST, PUT, DELETE)
+     * @param {Object} body - Request body (optional)
+     * @returns {Promise} API response
+     */
+    async apiCall(endpoint, method = 'GET', body = null) {
+        try {
+            const options = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+
+            const response = await fetch(`${this.API_URL}${endpoint}`, options);
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || `API error: ${response.status}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('API error:', error);
+            this.showSnackbar(`Error: ${error.message}`);
+            throw error;
+        }
+    }
+
+    // --------------------------------------------------------------------------
     // DATA PERSISTENCE METHODS
     // --------------------------------------------------------------------------
 
     /**
-     * Loads tasks from localStorage on app startup.
-     * 
-     * Process:
-     * 1. Get the JSON string from localStorage using STORAGE_KEY
-     * 2. Parse the JSON string to an array of plain objects
-     * 3. Convert each object to a Task instance
-     * 4. Update the tasks array
+     * Loads tasks from API on app startup.
      */
-    loadTasks() {
+    async loadTasks() {
         try {
-            const tasksJson = localStorage.getItem(this.STORAGE_KEY);
-
-            if (tasksJson) {
-                const parsed = JSON.parse(tasksJson);
-                this.tasks = parsed.map(obj => Task.fromJSON(obj));
+            this.isLoading = true;
+            const response = await this.apiCall('/tasks');
+            
+            if (response.success) {
+                this.tasks = response.data.map(obj => Task.fromJSON(obj));
             }
         } catch (error) {
             console.error('Error loading tasks:', error);
             this.tasks = [];
-        }
-    }
-
-    /**
-     * Saves the current task list to localStorage.
-     * 
-     * Process:
-     * 1. Convert each Task object to a plain object using toJSON()
-     * 2. Convert the array to a JSON string
-     * 3. Store in localStorage under STORAGE_KEY
-     */
-    saveTasks() {
-        try {
-            const tasksJson = JSON.stringify(this.tasks.map(t => t.toJSON()));
-            localStorage.setItem(this.STORAGE_KEY, tasksJson);
-        } catch (error) {
-            console.error('Error saving tasks:', error);
+        } finally {
+            this.isLoading = false;
+            this.render();
         }
     }
 
@@ -198,80 +220,138 @@ class ToDoApp {
     // --------------------------------------------------------------------------
 
     /**
-     * Adds a new task to the list and persists the change.
+     * Adds a new task via API
      */
-    addTask() {
-        const title = this.taskInput.value.trim();
-
-        if (!title) return;
-
-        const task = Task.create(title);
-        this.tasks.unshift(task); // Add to beginning of array
-
-        this.saveTasks();
-        this.render();
-        this.closeModal();
-        this.editingTaskId = null;
-    }
-
-    /**
-     * Toggles the completion status of a task.
-     * @param {string} id - Task ID to toggle
-     */
-    toggleTask(id) {
-        const task = this.tasks.find(t => t.id === id);
-        if (task) {
-            task.isDone = !task.isDone;
-            this.saveTasks();
-            this.render();
+    async addTask(title) {
+        try {
+            this.isLoading = true;
+            const response = await this.apiCall('/tasks', 'POST', { title });
+            
+            if (response.success) {
+                const newTask = Task.fromJSON(response.data);
+                this.tasks.unshift(newTask);
+                this.render();
+                this.closeModal();
+                this.editingTaskId = null;
+                this.showSnackbar('Task added successfully');
+            }
+        } catch (error) {
+            console.error('Error adding task:', error);
+        } finally {
+            this.isLoading = false;
         }
     }
 
     /**
-     * Deletes a task from the list with undo option.
+     * Toggles the completion status of a task via API
+     * @param {string} id - Task ID to toggle
+     */
+    async toggleTask(id) {
+        try {
+            const task = this.tasks.find(t => t.id === id);
+            if (!task) return;
+
+            const response = await this.apiCall(`/tasks/${id}`, 'PUT', {
+                isDone: !task.isDone
+            });
+
+            if (response.success) {
+                task.isDone = response.data.isDone;
+                this.render();
+            }
+        } catch (error) {
+            console.error('Error toggling task:', error);
+        }
+    }
+
+    /**
+     * Deletes a task via API with undo option
      * @param {string} id - Task ID to delete
      */
-    deleteTask(id) {
-        const index = this.tasks.findIndex(t => t.id === id);
-        if (index === -1) return;
+    async deleteTask(id) {
+        try {
+            const index = this.tasks.findIndex(t => t.id === id);
+            if (index === -1) return;
 
-        // Store for potential undo
-        this.deletedTask = this.tasks[index];
-        this.deletedTaskIndex = index;
+            // Store for potential undo
+            this.deletedTask = this.tasks[index];
+            this.deletedTaskIndex = index;
 
-        // Remove from array
-        this.tasks.splice(index, 1);
+            // Remove from UI immediately for better UX
+            this.tasks.splice(index, 1);
+            this.render();
 
-        this.saveTasks();
-        this.render();
-        this.showSnackbar(`Deleted "${this.deletedTask.title}"`);
+            // Delete from API
+            await this.apiCall(`/tasks/${id}`, 'DELETE');
+            this.showSnackbar(`Deleted "${this.deletedTask.title}"`);
+
+            // Clear undo after 5 seconds
+            setTimeout(() => {
+                this.deletedTask = null;
+                this.deletedTaskIndex = -1;
+            }, 5000);
+        } catch (error) {
+            console.error('Error deleting task:', error);
+            // Restore task on error
+            if (this.deletedTask && this.deletedTaskIndex !== -1) {
+                this.tasks.splice(this.deletedTaskIndex, 0, this.deletedTask);
+                this.render();
+            }
+        }
     }
 
     /**
      * Undoes the last delete operation
      */
-    undoDelete() {
-        if (this.deletedTask && this.deletedTaskIndex !== -1) {
-            this.tasks.splice(this.deletedTaskIndex, 0, this.deletedTask);
-            this.saveTasks();
-            this.render();
-            this.hideSnackbar();
-            this.deletedTask = null;
-            this.deletedTaskIndex = -1;
+    async undoDelete() {
+        try {
+            if (!this.deletedTask) return;
+
+            // Re-add task to API (simulate by re-creating)
+            const response = await this.apiCall('/tasks', 'POST', {
+                title: this.deletedTask.title
+            });
+
+            if (response.success) {
+                const restoredTask = Task.fromJSON(response.data);
+                this.tasks.splice(this.deletedTaskIndex, 0, restoredTask);
+                this.render();
+                this.hideSnackbar();
+                this.deletedTask = null;
+                this.deletedTaskIndex = -1;
+                this.showSnackbar('Task restored');
+            }
+        } catch (error) {
+            console.error('Error restoring task:', error);
         }
     }
 
     /**
-     * Edits an existing task's title
+     * Edits an existing task's title via API
      * @param {string} id - Task ID to edit
      * @param {string} newTitle - New title for the task
      */
-    editTask(id, newTitle) {
-        const task = this.tasks.find(t => t.id === id);
-        if (task && newTitle.trim()) {
-            task.title = newTitle.trim();
-            this.saveTasks();
-            this.render();
+    async editTask(id, newTitle) {
+        try {
+            if (!newTitle.trim()) return;
+
+            this.isLoading = true;
+            const response = await this.apiCall(`/tasks/${id}`, 'PUT', {
+                title: newTitle
+            });
+
+            if (response.success) {
+                const task = this.tasks.find(t => t.id === id);
+                if (task) {
+                    task.title = response.data.title;
+                    this.render();
+                    this.showSnackbar('Task updated successfully');
+                }
+            }
+        } catch (error) {
+            console.error('Error editing task:', error);
+        } finally {
+            this.isLoading = false;
         }
     }
 
@@ -285,7 +365,7 @@ class ToDoApp {
         if (this.editingTaskId) {
             this.editTask(this.editingTaskId, title);
         } else {
-            this.addTask();
+            this.addTask(title);
         }
 
         this.closeModal();
@@ -471,13 +551,13 @@ class ToDoApp {
           <p class="task-title">${this.escapeHtml(task.title)}</p>
           <span class="task-date">${this.formatDate(task.createdAt)}</span>
         </div>
-        <button class="edit-btn" onclick="event.stopPropagation(); app.openModal('${task.id}')" aria-label="Edit task">
+        <button class="edit-btn" onclick="event.stopPropagation(); app.openModal('${task.id}')" aria-label="Edit task" ${this.isLoading ? 'disabled' : ''}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
             <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
           </svg>
         </button>
-        <button class="delete-btn" onclick="event.stopPropagation(); app.deleteTask('${task.id}')" aria-label="Delete task">
+        <button class="delete-btn" onclick="event.stopPropagation(); app.deleteTask('${task.id}')" aria-label="Delete task" ${this.isLoading ? 'disabled' : ''}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
