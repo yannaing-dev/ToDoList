@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A beautiful, production-ready To-Do List application">
+  <title>My Tasks - To-Do List</title>
+  <link rel="icon" type="image/png" href="assets/todolist.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="app-container">
+    <!-- Header Section -->
+    <header class="header">
+      <p class="date" id="currentDate"></p>
+      <h1 class="title">My Tasks</h1>
+      <div class="stats" id="stats"></div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Empty State -->
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        </div>
+        <h2>No tasks yet!</h2>
+        <p>Tap the button below to add your first task<br>and start being productive.</p>
+        <div class="arrow-down">↓</div>
+      </div>
+
+      <!-- Task List -->
+      <ul class="task-list" id="taskList"></ul>
+    </main>
+
+    <!-- Floating Action Button -->
+    <button class="fab" id="addTaskBtn" aria-label="Add new task">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      <span>Add Task</span>
+    </button>
+  </div>
+
+  <!-- Bottom Sheet Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modal">
+      <div class="modal-handle"></div>
+      <h2 class="modal-title" id="modalTitle">Add New Task</h2>
+      <div class="input-wrapper">
+        <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+        </svg>
+        <input type="text" id="taskInput" placeholder="What needs to be done?" autocomplete="off" maxlength="200">
+      </div>
+      <button class="add-btn" id="submitTaskBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        Add Task
+      </button>
+    </div>
+  </div>
+
+  <!-- Snackbar for notifications -->
+  <div class="snackbar" id="snackbar">
+    <span id="snackbarMessage"></span>
+    <button id="snackbarAction">Undo</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
